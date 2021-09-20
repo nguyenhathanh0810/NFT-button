@@ -1,9 +1,48 @@
 "use strict";
 
-const CONTRACT_ADDRESS = "";
+const CONTRACT_ADDRESS = "0x682469DA60E16bA19De371996086ED318C6Efd51";
 const ABI = [
-
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numberToken",
+        "type": "uint256"
+      }
+    ],
+    "name": "mintTokenOnSale",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MINT_FEE_PER_TOKEN",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "status",
+    "outputs": [
+      {
+        "internalType": "enum NFTBase.STATUS",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
 ];
+
 const OPENSEA_BASE_URL = "https://testnets.opensea.io/assets";
 const Web3Modal = window.Web3Modal.default;
 const WalletConnectProvider = window.WalletConnectProvider.default;
@@ -11,6 +50,7 @@ const INFURA_ID = "da08f23f6ff045e0adbbbb0ceb1318c6";
 const Fortmatic = window.Fortmatic;
 const FORTMATIC_PK = "pk_live_F1478434631DD015";
 const evmChains = window.evmChains;
+
 
 // Web3modal instance
 let $web3Modal
@@ -24,23 +64,37 @@ let $selectedAccount;
 // Contract
 let $contract;
 
-function mintSaleToken() {
+let $web3
 
-  $provider
-    .getGasPrice()
-    .then(async (currentGasPrice) => {
+async function mintSaleToken() {
 
-      let config = {}
-      
-      try {
-        
-        await $contract.mintPreSaleToken(config);
+  const BN = $web3.utils.BN;
 
-      } catch (error) {
-        // Handle error 
-      }
+  const status = await $contract.methods.status().call();
 
-    });
+  if (status != 2) {
+    notyf.error('You can not mint token now!!!');
+  }
+  const MINT_FEE_PER_TOKEN = await $contract.methods.MINT_FEE_PER_TOKEN().call();
+
+  let config = {
+    value: new BN(MINT_FEE_PER_TOKEN).mul(new BN(4)),
+    from: $selectedAccount
+  }
+  $contract.methods.mintTokenOnSale("4").estimateGas(config).then(async (gasEsimate) => {
+    const gasBN = new BN(gasEsimate);
+    config['gas'] = gasBN.add(gasBN.div(new BN(10)));
+
+    notyf.success("Transaction minting ... Please sign transaction!!!")
+
+    const tx = await $contract.methods.mintTokenOnSale("4").send(config)
+    console.log(tx.blockHash)
+    notyf.success("Transaction minted at blockhash" + tx.blockHash)
+
+  }).catch(error => {
+    notyf.error(error.toString())
+  })
+
 
 }
 
@@ -51,11 +105,11 @@ function mintTokenForCreator() {
     .then(async (currentGasPrice) => {
 
       let config = {}
-      
+
       try {
-        
+
         await $contract.mintTokenForCreator(config);
-  
+
       } catch (error) {
         // Handle error
       }
@@ -71,9 +125,9 @@ function mintPreSaleToken() {
     .then(async (currentGasPrice) => {
 
       let config = {}
-      
+
       try {
-        
+
         await $contract.mintPreSaleToken(config);
 
       } catch (error) {
@@ -91,15 +145,15 @@ function receiveGift() {
     .then(async (currentGasPrice) => {
 
       let config = {}
-      
+
       try {
-        
+
         await $contract.receiveGift(config);
 
       } catch (error) {
         // Handle error
       }
-      
+
     });
 
 }
@@ -110,7 +164,7 @@ function receiveGift() {
 function init() {
   // Check that the web page is run in a secure context,
   // as otherwise MetaMask won't be available
-  if(location.protocol !== 'https:') {
+  if (location.protocol !== 'https:') {
     // https://ethereum.stackexchange.com/a/62217/620
     // const alert = document.querySelector("#alert-error-https");
     // alert.style.display = "block";
@@ -144,18 +198,18 @@ async function onConnect(e) {
   $logger.info("Opening the dialog", $web3Modal);
   try {
     $provider = await $web3Modal.connect();
-  } catch(e) {
+  } catch (e) {
     $logger.info("Could not get a wallet connection", e);
     return;
   }
-  
+
   $provider.on("accountsChanged", (accounts) => {
     fetchAccountData()
       .then(({ network, account }) => {
         updateAccountPanel(network, account);
       });
   });
-  
+
   $provider.on("chainChanged", (chainId) => {
     fetchAccountData()
       .then(({ network, account }) => {
@@ -178,8 +232,8 @@ async function onDisconnect(e) {
 
   $logger.info("Killing the wallet connection", $provider);
   // TODO: Which providers have close method?
-  if($provider.close) {
-    await $provider.close();
+  if ($provider.disconnect) {
+    await $provider.disconnect();
     // If the cached provider is not cleared,
     // WalletConnect will default to the existing session
     // and does not allow to re-scan the QR code with a new wallet.
@@ -199,20 +253,20 @@ async function onDisconnect(e) {
  */
 async function fetchAccountData() {
   // Get a Web3 instance for the wallet
-  const web3 = new Web3($provider);
-  $logger.info("Web3 instance is", web3);
+  $web3 = new Web3($provider);
+  $logger.info("Web3 instance is", $web3);
 
   // Set contract based on selected account
-  $contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS);
+  $contract = new $web3.eth.Contract(ABI, CONTRACT_ADDRESS);
 
   // Get connected chain id from Ethereum node
-  const chainId = await web3.eth.getChainId();
+  const chainId = await $web3.eth.getChainId();
   // Load chain information over an HTTP API
   const chainData = evmChains.getChain(chainId);
   $logger.info("chainId is", chainId, ", Chain data name is", chainData.name);
 
   // Get list of accounts of the connected wallet
-  const accounts = await web3.eth.getAccounts();
+  const accounts = await $web3.eth.getAccounts();
   $logger.info("Got accounts", accounts);
 
   // MetaMask does not give you all accounts, only the selected account
@@ -220,8 +274,8 @@ async function fetchAccountData() {
   $logger.info("Account", $selectedAccount);
 
   const accountResolvers = accounts.map(async (address) => {
-    const balance = await web3.eth.getBalance(address)
-    const ethBalance = web3.utils.fromWei(balance, "ether");
+    const balance = await $web3.eth.getBalance(address)
+    const ethBalance = $web3.utils.fromWei(balance, "ether");
     const humanFriendlyBalance = parseFloat(ethBalance).toFixed(4);
     $logger.info("Account at", address, " has the balance of approximately", humanFriendlyBalance);
   });
@@ -331,7 +385,7 @@ function showAccountPanel(network, account) {
       </div>
       <div class="nft__row">
         <center>
-          <button type="button" class="nft__button">Mint token</button>
+          <button type="button" class="nft__button" id="btn_mint">Mint token</button>
         </center>
       </div>
       <div class="nft__row">
@@ -356,6 +410,14 @@ function showAccountPanel(network, account) {
   `;
   wrapper.innerHTML = template;
   document.body.appendChild(wrapper);
+
+  let $bntMint = document.querySelector("#btn_mint");
+  $bntMint.addEventListener('click', mintSaleToken);
+  let $nft__fetch = document.querySelector("#nft__fetch");
+
+  $nft__fetch.addEventListener('click', () => {
+    let $nft_tokenId = document.querySelector("#nft__tokenId");
+  })
   setTimeout(() => {
     wrapper.querySelector('#nft__panel').classList.add("visible");
   });
@@ -381,19 +443,19 @@ const disableButton = (evt) => {
     try {
       //Using W3 DOM2 (works for FF, Opera and Chrome)
       return asButton instanceof HTMLElement;
-    } catch(e) {
+    } catch (e) {
       //Browsers not supporting W3 DOM2 don't have HTMLElement and
       //an exception is thrown and we end up here. Testing some
       //properties that all elements have (works on IE7)
       return (typeof asButton === "object") &&
-        (asButton.nodeType === 1 ) && (typeof asButton.style === "object") &&
-        (typeof asButton.ownerDocument ==="object");
+        (asButton.nodeType === 1) && (typeof asButton.style === "object") &&
+        (typeof asButton.ownerDocument === "object");
     }
   }
   if (isButton(evt.target)) {
     evt.target.setAttribute('disabled', 'disabled');
   }
-  
+
 }
 
 var notyf;
@@ -403,6 +465,7 @@ window.addEventListener('load', async () => {
   const $btnConnect = document.querySelector('#btn__connect');
   if ($btnConnect) {
     $btnConnect.addEventListener('click', onConnect);
+
   }
   notyf = new Notyf({
     duration: 12000,

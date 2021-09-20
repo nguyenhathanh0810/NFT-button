@@ -166,7 +166,6 @@ async function onConnect(e) {
   await refreshAccountData()
     .then(({ network, account }) => {
       showAccountPanel(network, account);
-      notyf.success("You're connected")
     });
 }
 
@@ -272,6 +271,7 @@ function showAccountPanel(network, account) {
         padding: 15px 25px;
         border-radius: 3px;
         background-color: #79244d;
+        color: white;
         box-shadow: 0px 2px 5px 0px rgba(0, 0, 0, 0.1);
         pointer-events: none;
         z-index: -1;
@@ -289,7 +289,7 @@ function showAccountPanel(network, account) {
       #nft__wrapper .nft__row {
         margin-bottom: 1rem;
       }
-      #nft__wrapper #btn-disconnect {
+      #nft__wrapper .nft__button {
         padding: 8px 16px;
         font-weight: bold;
         color: white;
@@ -300,8 +300,24 @@ function showAccountPanel(network, account) {
         transition: 150ms ease-in-out;
         transition-property: color;
       }
-      #nft__wrapper #btn-disconnect:hover {
+      #nft__wrapper .nft__button:hover {
         color: #C9665F !important;
+      }
+      .nft__input-group {
+        width: 100%;
+        display: flex;
+      }
+      .nft__input-group > input {
+        flex-grow: 1;
+      }
+      .nft__input-group > button {
+        flex-shrink: 0;
+        width: 90px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
       }
     </style>
     <div id="nft__panel">
@@ -313,8 +329,28 @@ function showAccountPanel(network, account) {
         <b>Selected account:</b>
         <div id="nft__selected-account">${account}</div>
       </div>
+      <div class="nft__row">
+        <center>
+          <button type="button" class="nft__button">Mint token</button>
+        </center>
+      </div>
+      <div class="nft__row">
+        <div class="nft__input-group">
+          <input type="text" id="nft__tokenId" placeholder="Enter tokenId to fetch" />
+          <button type="button" class="nft__button" id="nft__fetch">Fetch</button>
+        </div>
+      </div>
+      <div class="nft__row">
+        <div class="nft__input-group">
+          <input type="text" id="nft__baseURI" placeholder="Enter ipfs base URI" />
+          <button type="button" class="nft__button" id="nft__setURI">Set URI</button>
+        </div>
+      </div>
+      <div class="nft__row">
+        <hr />
+      </div>
       <div class="">
-        <button id="btn-disconnect" type="button" onclick="onDisconnect()">Disconnect</button>
+        <button id="btn-disconnect" class="nft__button" type="button" onclick="onDisconnect()">Disconnect</button>
       </div>
     </div>
   `;

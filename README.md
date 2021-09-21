@@ -50,4 +50,4 @@ Other configurations
 At the beginning of the **nft-button.js**, change these constants to whatever that suits your need.
 - `INFURA_ID`: set to your own Infura ID if you wish to provide Wallet Connect to your clients. Set to empty `INFURA_ID = ""` to not use Wallet Connect.
 - `FORTMATIC_PK`: set to your own Formatic API Key if you wish to provide Formatic to your clients. Set to empty `FORTMATIC_PK = ""` to not use Formatic.
-- `MAX_MINT_PER_CLICK`: 5 by default. The maximum tokens that your clients are able to mint at once. So, the can set to making between `1 to MAX_MINT_PER_CLICK` mints per click.
+- `MAX_MINT_PER_CLICK`: 5 by default. The maximum tokens that your clients are able to mint at once. So, they can set to making between `1 to MAX_MINT_PER_CLICK` mints per click.

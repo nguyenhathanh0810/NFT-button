@@ -73,6 +73,19 @@ const ABI = [
     "stateMutability": "payable",
     "type": "function"
   },
+  {
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
 ];
 
 const OPENSEA_BASE_URL = "https://testnets.opensea.io/assets";
@@ -102,6 +115,7 @@ let $web3
 
 async function mintToken() {
 
+  console.log((await $contract.methods.totalSupply().call()).toString());
   let numberOfMints = 1;
   const $nomInput = document.querySelector('#nft__numberOfMints');
   if ($nomInput) {

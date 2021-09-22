@@ -86,6 +86,19 @@ const ABI = [
     "stateMutability": "view",
     "type": "function"
   },
+  {
+    "inputs": [],
+    "name": "DSA_SUPPLY",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
 ];
 
 const OPENSEA_BASE_URL = "https://testnets.opensea.io/assets";
@@ -114,8 +127,6 @@ let $contract;
 let $web3
 
 async function mintToken() {
-
-  console.log((await $contract.methods.totalSupply().call()).toString());
   let numberOfMints = 1;
   const $nomInput = document.querySelector('#nft__numberOfMints');
   if ($nomInput) {
@@ -185,6 +196,20 @@ async function mintToken() {
     })
     return;
   }
+}
+
+async function getCountdownParams(callback) {
+  return await $contract.methods.DSA_SUPPLY().call()
+    .then(async (DSA_SUPPLY) => {
+      const totalSuply = await $contract.methods.totalSupply().call();
+      if (typeof callback === 'function') {
+        callback({ dsa: DSA_SUPPLY, total: totalSuply });
+      }
+      return {
+        DSA_SUPPLY,
+        totalSuply
+      }
+    });
 }
 
 function mintTokenForCreator() {
@@ -335,6 +360,7 @@ async function onDisconnect(e) {
     $contract = null;
   }
   $selectedAccount = null;
+  clearInterval(countDownInterval);
   setTimeout(() => {
     hideAccountPanel();
   });
@@ -403,7 +429,6 @@ function showAccountPanel(network, account) {
   if (document.querySelector('#nft__wrapper')) {
     return;
   }
-  const mintsLeft = 5;
 
   const wrapper = document.createElement("div");
   wrapper.setAttribute("id", "nft__wrapper");
@@ -562,10 +587,7 @@ function showAccountPanel(network, account) {
         <div class="nft__row">
           <div class="nft-flex">
             <div class="nft-flex-grow">
-              <b>Available mints left: </b> <b id="nft__mintsLeft">${mintsLeft}</b>
-            </div>
-            <div class="nft-flex-shrink-0">
-              <button>Update</button>
+              <b>AVAILABLE TOKENS LEFT: </b> <b id="nft_tokensLeft"></b>
             </div>
           </div>
         </div>
@@ -586,7 +608,6 @@ function showAccountPanel(network, account) {
     </div>
   `;
   wrapper.innerHTML = template;
-  document.body.appendChild(wrapper);
   const $input = wrapper.querySelector('#nft__numberOfMints');
   // In order to prevent typing characters other than integer and backspace
   $input.addEventListener('keypress', (evt) => {
@@ -631,9 +652,24 @@ function showAccountPanel(network, account) {
     $input.value = valueChange < 1 ? 1 : valueChange;
   });
 
-  let $bntMint = document.querySelector("#btn_mint");
+  let $bntMint = wrapper.querySelector("#btn_mint");
   $bntMint.addEventListener('click', mintToken);
 
+  const tokensCountdown = ({ dsa, total }) => {
+    const cdDisplay = wrapper.querySelector('#nft_tokensLeft');
+    if (cdDisplay) {
+      cdDisplay.textContent = `${dsa - total} / ${dsa}`;
+    }
+    if (countDownNotyf) {
+      countDownNotyf.success(`AVAILABLE TOKENS LEFT: ${dsa - total} / ${dsa}`);
+    }
+  }
+  getCountdownParams(tokensCountdown);
+  countDownInterval = setInterval(() => {
+    getCountdownParams(tokensCountdown)
+  }, 30000);
+
+  document.body.appendChild(wrapper);
   setTimeout(() => {
     wrapper.classList.add("visible");
   }, 250);
@@ -675,6 +711,8 @@ const disableButton = (evt) => {
 }
 
 var notyf;
+var countDownNotyf;
+var countDownInterval;
 
 window.addEventListener('load', async () => {
   init();
@@ -688,4 +726,9 @@ window.addEventListener('load', async () => {
     position: { x: 'left', y: 'top' },
     dismissible: true
   });
+  countDownNotyf = new Notyf({
+    duration: 5000,
+    position: { x: 'left', y: 'top' },
+    dismissible: true
+  })
 });

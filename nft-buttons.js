@@ -1,6 +1,6 @@
 "use strict";
 
-const CONTRACT_ADDRESS = "0x682469DA60E16bA19De371996086ED318C6Efd51";
+const CONTRACT_ADDRESS = "0xfB6A74fF4B5DE33248F92e3DfaDd643ad92621BD";
 const ABI = [
   {
     "inputs": [
@@ -17,7 +17,7 @@ const ABI = [
   },
   {
     "inputs": [],
-    "name": "MINT_FEE_PER_TOKEN",
+    "name": "price",
     "outputs": [
       {
         "internalType": "uint256",
@@ -41,16 +41,50 @@ const ABI = [
     "stateMutability": "view",
     "type": "function"
   },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "giveAways",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numberToken",
+        "type": "uint256"
+      }
+    ],
+    "name": "mintTokenOnPreSale",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
 ];
 
 const OPENSEA_BASE_URL = "https://testnets.opensea.io/assets";
 const Web3Modal = window.Web3Modal.default;
 const WalletConnectProvider = window.WalletConnectProvider.default;
-const INFURA_ID = "da08f23f6ff045e0adbbbb0ceb1318c6";
+// Set INFURA_ID to empty if you don't want to use WalletConnect
+const INFURA_ID = "";
 const Fortmatic = window.Fortmatic;
-const FORTMATIC_PK = "pk_live_F1478434631DD015";
+// Set FORTMATIC_PK to empty if you don't want to use Formatic
+const FORTMATIC_PK = "";
 const evmChains = window.evmChains;
-
+const MAX_MINT_PER_CLICK = 5;
 
 // Web3modal instance
 let $web3Modal
@@ -66,36 +100,77 @@ let $contract;
 
 let $web3
 
-async function mintSaleToken() {
+async function mintToken() {
+
+  let numberOfMints = 1;
+  const $nomInput = document.querySelector('#nft__numberOfMints');
+  if ($nomInput) {
+    let nomVal = parseInt($nomInput.value);
+    if (!isNaN(nomVal) && !(nomVal < 1 || nomVal > MAX_MINT_PER_CLICK)) {
+      numberOfMints = nomVal;
+    }
+  }
 
   const BN = $web3.utils.BN;
 
   const status = await $contract.methods.status().call();
 
-  if (status != 2) {
+  if (status == 0) {
     notyf.error('You can not mint token now!!!');
   }
-  const MINT_FEE_PER_TOKEN = await $contract.methods.MINT_FEE_PER_TOKEN().call();
 
-  let config = {
-    value: new BN(MINT_FEE_PER_TOKEN).mul(new BN(4)),
-    from: $selectedAccount
+  const price = await $contract.methods.price().call();
+
+
+  let config;
+
+  if (status == 1) {
+
+    let giveaway = await $contract.methods.giveAways($selectedAccount).call();
+    let giveawayBN = new BN(giveaway);
+    let numberOfMintsBN = new BN(numberOfMints);
+
+
+    let amount = (giveawayBN.gte(numberOfMintsBN)) ? new BN(0) : numberOfMintsBN.sub(giveawayBN);
+    config = {
+      value: amount.mul(new BN(price)),
+      from: $selectedAccount
+    }
+
+    $contract.methods.mintTokenOnPreSale(`${numberOfMints}`).estimateGas(config).then(async (gasEsimate) => {
+      const gasBN = new BN(gasEsimate);
+      config['gas'] = gasBN.add(gasBN.div(new BN(10)));
+
+      notyf.success("Transaction minting ... Please sign transaction!!!")
+
+      const tx = await $contract.methods.mintTokenOnPreSale(`${numberOfMints}`).send(config)
+      notyf.success("Transaction minted at blockhash" + tx.blockHash)
+
+    }).catch(error => {
+      notyf.error(error.message)
+    })
+    return;
   }
-  $contract.methods.mintTokenOnSale("4").estimateGas(config).then(async (gasEsimate) => {
-    const gasBN = new BN(gasEsimate);
-    config['gas'] = gasBN.add(gasBN.div(new BN(10)));
 
-    notyf.success("Transaction minting ... Please sign transaction!!!")
+  if (status == 2) {
+    config = {
+      value: new BN(price).mul(new BN(numberOfMints)),
+      from: $selectedAccount
+    }
+    $contract.methods.mintTokenOnSale(`${numberOfMints}`).estimateGas(config).then(async (gasEsimate) => {
+      const gasBN = new BN(gasEsimate);
+      config['gas'] = gasBN.add(gasBN.div(new BN(10)));
 
-    const tx = await $contract.methods.mintTokenOnSale("4").send(config)
-    console.log(tx.blockHash)
-    notyf.success("Transaction minted at blockhash" + tx.blockHash)
+      notyf.success("Transaction minting ... Please sign transaction!!!")
 
-  }).catch(error => {
-    notyf.error(error.toString())
-  })
+      const tx = await $contract.methods.mintTokenOnSale(`${numberOfMints}`).send(config)
+      notyf.success("Transaction minted at blockhash" + tx.blockHash)
 
-
+    }).catch(error => {
+      notyf.error(error.message)
+    })
+    return;
+  }
 }
 
 function mintTokenForCreator() {
@@ -172,14 +247,17 @@ function init() {
     // return;
     $logger.warn("Not HTTPS");
   }
-  const providerOptions = {
-    walletconnect: {
+  const providerOptions = {};
+  if (INFURA_ID) {
+    providerOptions.walletconnect = {
       package: WalletConnectProvider,
       options: {
         infuraId: INFURA_ID,
       }
-    },
-    fortmatic: {
+    }
+  }
+  if (FORTMATIC_PK) {
+    providerOptions.fortmatic = {
       package: Fortmatic,
       options: {
         key: FORTMATIC_PK
@@ -245,7 +323,7 @@ async function onDisconnect(e) {
   $selectedAccount = null;
   setTimeout(() => {
     hideAccountPanel();
-  }, 1000);
+  });
 }
 
 /**
@@ -294,13 +372,13 @@ function updateAccountPanel(network, account) {
   hideAccountPanel();
   setTimeout(() => {
     showAccountPanel(network, account);
-  }, 500);
+  }, 750);
 }
 
 function hideAccountPanel() {
   const wrapper = document.querySelector("#nft__wrapper");
   if (wrapper) {
-    wrapper.querySelector('#nft__panel').classList.remove('visible');
+    wrapper.classList.remove('visible');
     setTimeout(() => {
       wrapper.remove();
     }, 250);
@@ -314,15 +392,16 @@ function showAccountPanel(network, account) {
 
   const wrapper = document.createElement("div");
   wrapper.setAttribute("id", "nft__wrapper");
+  const minusIcon = `<svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="minus" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="16"><path fill="currentColor" d="M416 208H32c-17.67 0-32 14.33-32 32v32c0 17.67 14.33 32 32 32h384c17.67 0 32-14.33 32-32v-32c0-17.67-14.33-32-32-32z" class=""></path></svg>`;
+  const plusIcon = `<svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="plus" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="16"><path fill="currentColor" d="M416 208H272V64c0-17.67-14.33-32-32-32h-32c-17.67 0-32 14.33-32 32v144H32c-17.67 0-32 14.33-32 32v32c0 17.67 14.33 32 32 32h144v144c0 17.67 14.33 32 32 32h32c17.67 0 32-14.33 32-32V304h144c17.67 0 32-14.33 32-32v-32c0-17.67-14.33-32-32-32z" class=""></path></svg>`;
   const template = `
     <style>
-      #nft__wrapper #nft__panel {
+      #nft__wrapper {
         --x-translate: -15px;
         --y-translate: 0px;
         position: fixed;
         left: 15px;
         bottom: 15px;
-        padding: 15px 25px;
         border-radius: 3px;
         background-color: #79244d;
         color: white;
@@ -334,11 +413,25 @@ function showAccountPanel(network, account) {
         transition: 150ms ease-in-out;
         transition-property: opacity, transform;
       }
-      #nft__wrapper #nft__panel.visible {
+      #nft__wrapper.visible {
         --x-translate: 0px;
         z-index: 10000000;
         opacity: 1;
         pointer-events: auto;
+      }
+      #nft__panel {
+        position: relative;
+        padding: 20px;
+      }
+      #nft__panel .nft__header {
+        text-align: right;
+      }
+      #nft__panel .nft__header #btn-disconnect {
+        font-size: 75%;
+        padding: 2px 5px;
+        background-color: #9caab3;
+        color: #000000;
+        border-style: solid;
       }
       #nft__wrapper .nft__row {
         margin-bottom: 1rem;
@@ -357,6 +450,9 @@ function showAccountPanel(network, account) {
       #nft__wrapper .nft__button:hover {
         color: #C9665F !important;
       }
+      #nft__wrapper #btn_mint {
+        width: 100%;
+      }
       .nft__input-group {
         width: 100%;
         display: flex;
@@ -366,61 +462,137 @@ function showAccountPanel(network, account) {
       }
       .nft__input-group > button {
         flex-shrink: 0;
-        width: 90px;
+        min-width: 56px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         border-top-left-radius: 0px;
         border-bottom-left-radius: 0px;
       }
+      .nft__spinner > .nft__button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .nft__spinner > .nft__button:first-of-type {
+        border-top-right-radius: 0px;
+        border-bottom-right-radius: 0px;
+      }
+      .nft__spinner > .nft__button:last-of-type {
+        border-top-left-radius: 0px;
+        border-bottom-left-radius: 0px;
+      }
+      .nft__spinner > input {
+        font-size: 105%;
+        font-weight: bold;
+        text-align: center;
+      }
+      .nft__spinner > input::-webkit-outer-spin-button,
+      .nft__spinner > input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .nft__spinner > input[type=number] {
+        -moz-appearance: textfield;
+      }
+      .nft__spinner > input::placeholder {
+        font-size: .75rem;
+        font-weight: normal;
+      }
+      #nft__panel label {
+        display: inline-block;
+        margin-bottom: 4px;
+      }
+      @media screen and (max-width: 480px) {
+        #nft__wrapper {
+          right: 10px;
+        }
+        #nft__wrapper #nft__selected-account {
+          font-size: 12px;
+        }
+      }
     </style>
     <div id="nft__panel">
-      <div class="nft__row">
-        <b>Connected blockchain:</b>
-        <div id="nft__network-name">${network}</div>
-      </div>
-      <div class="nft__row">
-        <b>Selected account:</b>
-        <div id="nft__selected-account">${account}</div>
-      </div>
-      <div class="nft__row">
-        <center>
-          <button type="button" class="nft__button" id="btn_mint">Mint token</button>
-        </center>
-      </div>
-      <div class="nft__row">
-        <div class="nft__input-group">
-          <input type="text" id="nft__tokenId" placeholder="Enter tokenId to fetch" />
-          <button type="button" class="nft__button" id="nft__fetch">Fetch</button>
-        </div>
-      </div>
-      <div class="nft__row">
-        <div class="nft__input-group">
-          <input type="text" id="nft__baseURI" placeholder="Enter ipfs base URI" />
-          <button type="button" class="nft__button" id="nft__setURI">Set URI</button>
-        </div>
-      </div>
-      <div class="nft__row">
-        <hr />
-      </div>
-      <div class="">
+      <div class="nft__header">
         <button id="btn-disconnect" class="nft__button" type="button" onclick="onDisconnect()">Disconnect</button>
       </div>
+      <div class="nft__body">
+        <div class="nft__row">
+          <b>Connected blockchain:</b>
+          <div id="nft__network-name">${network}</div>
+        </div>
+        <div class="nft__row">
+          <b>Selected account:</b>
+          <div id="nft__selected-account">${account}</div>
+        </div>
+        <div class="nft__row"><hr /></div>
+        <div class="nft__row">
+          <label for="numberOfMints">Number of mints (up to ${MAX_MINT_PER_CLICK})</label>
+          <div class="nft__input-group nft__spinner">
+            <button type="button" class="nft__button" id="decrease-mint">${minusIcon}</button>
+            <input type="number" name="numberOfMints" id="nft__numberOfMints" min="1" max="${MAX_MINT_PER_CLICK}" step="1" value="1" placeholder="Up to ${MAX_MINT_PER_CLICK} times per click" />
+            <button type="button" class="nft__button" id="increase-mint">${plusIcon}</button>
+          </div>
+        </div>
+        <div class="nft__row">
+          <button type="button" class="nft__button" id="btn_mint">MINT TOKEN</button>
+        </div>
+      </div>
+      <div class="nft__footer"></div>
     </div>
   `;
   wrapper.innerHTML = template;
   document.body.appendChild(wrapper);
+  const $input = wrapper.querySelector('#nft__numberOfMints');
+  // In order to prevent typing characters other than integer and backspace
+  $input.addEventListener('keypress', (evt) => {
+    if (evt.which != 8 && evt.which != 0 && evt.which < 48 || evt.which > 57) {
+      // 8 for backspace
+      // 48-57 for numbers 0-9
+      evt.preventDefault();
+    }
+  });
+  // In order to prevent pasting invalid input, and backspacing
+  $input.addEventListener('input', (evt) => {
+    const value = parseInt(evt.target.value);
+    if (value < 1 || value > MAX_MINT_PER_CLICK || (evt.inputType === 'insertFromPaste' && isNaN(value))) {
+      evt.target.value = 1;
+    }
+    if (evt.inputType === 'deleteContentBackward') {
+      setTimeout(() => {
+        evt.target.value = 1;
+      }, 250);
+    }
+  });
+  wrapper.querySelector('#increase-mint').addEventListener('click', () => {
+    if ($input.value === '' || $input.value < 1) {
+      $input.value = 1;
+      return;
+    }
+    if ($input.value >= MAX_MINT_PER_CLICK) {
+      $input.value = MAX_MINT_PER_CLICK;
+      return;
+    }
+    $input.value = parseInt($input.value) + 1;
+  });
+  wrapper.querySelector('#decrease-mint').addEventListener('click', () => {
+    if ($input.value === '' || $input.value < 1) {
+      $input.value = 1;
+      return;
+    }
+    if ($input.value == 1) {
+      return;
+    }
+    let valueChange = parseInt($input.value) - 1;
+    $input.value = valueChange < 1 ? 1 : valueChange;
+  });
 
   let $bntMint = document.querySelector("#btn_mint");
-  $bntMint.addEventListener('click', mintSaleToken);
-  let $nft__fetch = document.querySelector("#nft__fetch");
+  $bntMint.addEventListener('click', mintToken);
 
-  $nft__fetch.addEventListener('click', () => {
-    let $nft_tokenId = document.querySelector("#nft__tokenId");
-  })
   setTimeout(() => {
-    wrapper.querySelector('#nft__panel').classList.add("visible");
-  });
+    wrapper.classList.add("visible");
+  }, 250);
 }
 
 const $logger = {

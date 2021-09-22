@@ -389,6 +389,7 @@ function showAccountPanel(network, account) {
   if (document.querySelector('#nft__wrapper')) {
     return;
   }
+  const mintsLeft = 5;
 
   const wrapper = document.createElement("div");
   wrapper.setAttribute("id", "nft__wrapper");
@@ -418,6 +419,9 @@ function showAccountPanel(network, account) {
         z-index: 10000000;
         opacity: 1;
         pointer-events: auto;
+      }
+      #nft__wrapper button {
+        cursor: pointer;
       }
       #nft__panel {
         position: relative;
@@ -452,6 +456,15 @@ function showAccountPanel(network, account) {
       }
       #nft__wrapper #btn_mint {
         width: 100%;
+      }
+      #nft__wrapper .nft-flex {
+        display: flex;
+      }
+      #nft__wrapper .nft-flex-grow {
+        flex-grow: 1;
+      }
+      #nft__wrapper .nft-flex-shrink-0 {
+        flex-shrink: 0;
       }
       .nft__input-group {
         width: 100%;
@@ -511,6 +524,13 @@ function showAccountPanel(network, account) {
           font-size: 12px;
         }
       }
+      .notyf__toast {
+        max-width: 490px;
+      }
+      .notyf__ripple {
+        width: 624px;
+        height: 624px;
+      }
     </style>
     <div id="nft__panel">
       <div class="nft__header">
@@ -524,6 +544,16 @@ function showAccountPanel(network, account) {
         <div class="nft__row">
           <b>Selected account:</b>
           <div id="nft__selected-account">${account}</div>
+        </div>
+        <div class="nft__row">
+          <div class="nft-flex">
+            <div class="nft-flex-grow">
+              <b>Available mints left: </b> <b id="nft__mintsLeft">${mintsLeft}</b>
+            </div>
+            <div class="nft-flex-shrink-0">
+              <button>Update</button>
+            </div>
+          </div>
         </div>
         <div class="nft__row"><hr /></div>
         <div class="nft__row">
@@ -640,7 +670,7 @@ window.addEventListener('load', async () => {
 
   }
   notyf = new Notyf({
-    duration: 12000,
+    duration: 20000,
     position: { x: 'left', y: 'top' },
     dismissible: true
   });

@@ -1,6 +1,6 @@
 "use strict";
 
-const CONTRACT_ADDRESS = "0x682469DA60E16bA19De371996086ED318C6Efd51";
+const CONTRACT_ADDRESS = "0xfB6A74fF4B5DE33248F92e3DfaDd643ad92621BD";
 const ABI = [
   {
     "inputs": [
@@ -17,7 +17,7 @@ const ABI = [
   },
   {
     "inputs": [],
-    "name": "MINT_FEE_PER_TOKEN",
+    "name": "price",
     "outputs": [
       {
         "internalType": "uint256",
@@ -39,6 +39,38 @@ const ABI = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "giveAways",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numberToken",
+        "type": "uint256"
+      }
+    ],
+    "name": "mintTokenOnPreSale",
+    "outputs": [],
+    "stateMutability": "payable",
     "type": "function"
   },
 ];
@@ -68,7 +100,7 @@ let $contract;
 
 let $web3
 
-async function mintSaleToken() {
+async function mintToken() {
 
   let numberOfMints = 1;
   const $nomInput = document.querySelector('#nft__numberOfMints');
@@ -83,29 +115,62 @@ async function mintSaleToken() {
 
   const status = await $contract.methods.status().call();
 
-  if (status != 2) {
+  if (status == 0) {
     notyf.error('You can not mint token now!!!');
   }
-  const MINT_FEE_PER_TOKEN = await $contract.methods.MINT_FEE_PER_TOKEN().call();
 
-  let config = {
-    value: new BN(MINT_FEE_PER_TOKEN).mul(new BN(numberOfMints)),
-    from: $selectedAccount
+  const price = await $contract.methods.price().call();
+
+
+  let config;
+
+  if (status == 1) {
+
+    let giveaway = await $contract.methods.giveAways($selectedAccount).call();
+    let giveawayBN = new BN(giveaway);
+    let numberOfMintsBN = new BN(numberOfMints);
+
+
+    let amount = (giveawayBN.gte(numberOfMintsBN)) ? new BN(0) : numberOfMintsBN.sub(giveawayBN);
+    config = {
+      value: amount.mul(new BN(price)),
+      from: $selectedAccount
+    }
+
+    $contract.methods.mintTokenOnPreSale(`${numberOfMints}`).estimateGas(config).then(async (gasEsimate) => {
+      const gasBN = new BN(gasEsimate);
+      config['gas'] = gasBN.add(gasBN.div(new BN(10)));
+
+      notyf.success("Transaction minting ... Please sign transaction!!!")
+
+      const tx = await $contract.methods.mintTokenOnPreSale(`${numberOfMints}`).send(config)
+      notyf.success("Transaction minted at blockhash" + tx.blockHash)
+
+    }).catch(error => {
+      notyf.error(error.message)
+    })
+    return;
   }
-  $contract.methods.mintTokenOnSale(`${numberOfMints}`).estimateGas(config).then(async (gasEsimate) => {
-    const gasBN = new BN(gasEsimate);
-    config['gas'] = gasBN.add(gasBN.div(new BN(10)));
 
-    notyf.success("Transaction minting ... Please sign transaction!!!")
+  if (status == 2) {
+    config = {
+      value: new BN(price).mul(new BN(numberOfMints)),
+      from: $selectedAccount
+    }
+    $contract.methods.mintTokenOnSale(`${numberOfMints}`).estimateGas(config).then(async (gasEsimate) => {
+      const gasBN = new BN(gasEsimate);
+      config['gas'] = gasBN.add(gasBN.div(new BN(10)));
 
-    const tx = await $contract.methods.mintTokenOnSale(`${numberOfMints}`).send(config)
-    notyf.success("Transaction minted at blockhash" + tx.blockHash)
+      notyf.success("Transaction minting ... Please sign transaction!!!")
 
-  }).catch(error => {
-    notyf.error(error.message)
-  })
+      const tx = await $contract.methods.mintTokenOnSale(`${numberOfMints}`).send(config)
+      notyf.success("Transaction minted at blockhash" + tx.blockHash)
 
-
+    }).catch(error => {
+      notyf.error(error.message)
+    })
+    return;
+  }
 }
 
 function mintTokenForCreator() {
@@ -523,7 +588,7 @@ function showAccountPanel(network, account) {
   });
 
   let $bntMint = document.querySelector("#btn_mint");
-  $bntMint.addEventListener('click', mintSaleToken);
+  $bntMint.addEventListener('click', mintToken);
 
   setTimeout(() => {
     wrapper.classList.add("visible");

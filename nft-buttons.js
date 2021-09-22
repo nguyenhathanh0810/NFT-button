@@ -79,10 +79,10 @@ const OPENSEA_BASE_URL = "https://testnets.opensea.io/assets";
 const Web3Modal = window.Web3Modal.default;
 const WalletConnectProvider = window.WalletConnectProvider.default;
 // Set INFURA_ID to empty if you don't want to use WalletConnect
-const INFURA_ID = "da08f23f6ff045e0adbbbb0ceb1318c6";
+const INFURA_ID = "";
 const Fortmatic = window.Fortmatic;
 // Set FORTMATIC_PK to empty if you don't want to use Formatic
-const FORTMATIC_PK = "pk_live_F1478434631DD015";
+const FORTMATIC_PK = "";
 const evmChains = window.evmChains;
 const MAX_MINT_PER_CLICK = 5;
 
